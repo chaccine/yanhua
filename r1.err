@@ -1,0 +1,14 @@
+/workspace/modelcmp/node_modules/puppeteer-core/lib/cjs/puppeteer/common/CallbackRegistry.js:101
+    #error = new Errors_js_1.ProtocolError();
+             ^
+
+ProtocolError: Input.dispatchTouchEvent timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.
+    at <instance_members_initializer> (/workspace/modelcmp/node_modules/puppeteer-core/lib/cjs/puppeteer/common/CallbackRegistry.js:101:14)
+    at new Callback (/workspace/modelcmp/node_modules/puppeteer-core/lib/cjs/puppeteer/common/CallbackRegistry.js:105:16)
+    at CallbackRegistry.create (/workspace/modelcmp/node_modules/puppeteer-core/lib/cjs/puppeteer/common/CallbackRegistry.js:23:26)
+    at Connection._rawSend (/workspace/modelcmp/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/Connection.js:93:26)
+    at CdpCDPSession.send (/workspace/modelcmp/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/CDPSession.js:68:33)
+    at touch (/workspace/yanhua/test.js:81:39)
+    at /workspace/yanhua/test.js:83:11
+
+Node.js v24.22.1
