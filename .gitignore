@@ -1,1 +1,7 @@
+shots/
 node_modules
+*.log
+*.err
+r1.json
+task.txt
+test.js
