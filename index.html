@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#03050e">
+<title>夜空烟花</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --glass: rgba(13, 20, 36, 0.62);
+    --line: rgba(196, 216, 255, 0.16);
+    --text: #e8eefc;
+    --muted: #92a3bf;
+    --accent: #ffcf7d;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #03050e;
+  }
+
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    color: var(--text);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #sky {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: crosshair;
+    touch-action: none;
+  }
+
+  .panel {
+    position: fixed;
+    top: max(14px, env(safe-area-inset-top));
+    left: max(14px, env(safe-area-inset-left));
+    z-index: 2;
+    width: 224px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    background: var(--glass);
+    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(14px) saturate(120%);
+    -webkit-backdrop-filter: blur(14px) saturate(120%);
+    animation: panel-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .panel::before {
+    content: "";
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #8ff0b5;
+    box-shadow: 0 0 9px rgba(143, 240, 181, 0.85);
+    transition: background 200ms, box-shadow 200ms;
+  }
+
+  .panel.is-paused::before {
+    background: #ffbd6b;
+    box-shadow: 0 0 9px rgba(255, 189, 107, 0.7);
+  }
+
+  .panel__title {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    color: var(--muted);
+  }
+
+  .panel__actions {
+    display: grid;
+    grid-template-columns: 1fr 1.55fr;
+    gap: 8px;
+  }
+
+  .btn {
+    min-height: 34px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.065);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 160ms, border-color 160ms, transform 120ms, opacity 160ms;
+  }
+
+  .btn:hover {
+    background: rgba(255, 255, 255, 0.11);
+    border-color: rgba(255, 255, 255, 0.23);
+  }
+
+  .btn:active { transform: scale(0.97); }
+
+  .btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn--fire {
+    color: #1b1408;
+    border-color: rgba(255, 212, 134, 0.7);
+    background: linear-gradient(135deg, #ffe3a5, #ffbc63);
+    font-weight: 600;
+  }
+
+  .btn--fire:hover { background: linear-gradient(135deg, #fff0c8, #ffc978); }
+
+  .btn--fire:disabled { background: rgba(255, 255, 255, 0.065); color: var(--text); }
+
+  .panel__stats {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+
+  .panel__stats strong {
+    color: var(--text);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .panel__stats span { white-space: nowrap; }
+
+  .hint {
+    position: fixed;
+    left: 50%;
+    bottom: max(22px, env(safe-area-inset-bottom));
+    z-index: 2;
+    transform: translateX(-50%);
+    padding: 7px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(8, 13, 26, 0.42);
+    color: rgba(222, 233, 252, 0.66);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: opacity 700ms ease, transform 700ms ease;
+    animation: hint-in 900ms 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .hint.is-hidden {
+    opacity: 0;
+    transform: translate(-50%, 7px);
+  }
+
+  @keyframes panel-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes hint-in {
+    from { opacity: 0; transform: translate(-50%, 8px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
+  @media (max-width: 520px) {
+    .panel {
+      width: 196px;
+      padding: 10px;
+      border-radius: 13px;
+    }
+
+    .panel__stats { font-size: 10px; }
+    .hint { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="sky" aria-label="夜空烟花动画，点击画面可以发射烟花"></canvas>
+
+  <div class="panel" id="panel">
+    <p class="panel__title">夜空烟花</p>
+    <div class="panel__actions">
+      <button class="btn" id="toggleBtn" type="button" aria-pressed="false">暂停</button>
+      <button class="btn btn--fire" id="burstBtn" type="button">连发 ×10</button>
+    </div>
+    <div class="panel__stats">
+      <span>粒子 <strong id="countEl">0</strong></span>
+      <span><strong id="fpsEl">60</strong> FPS</span>
+    </div>
+  </div>
+
+  <div class="hint" id="hint">点击夜空，放一朵烟花</div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const canvas = document.getElementById("sky");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    const fxCanvas = document.createElement("canvas");
+    const fx = fxCanvas.getContext("2d");
+    const bgCanvas = document.createElement("canvas");
+    const bg = bgCanvas.getContext("2d");
+
+    const panel = document.getElementById("panel");
+    const toggleBtn = document.getElementById("toggleBtn");
+    const burstBtn = document.getElementById("burstBtn");
+    const countEl = document.getElementById("countEl");
+    const fpsEl = document.getElementById("fpsEl");
+    const hint = document.getElementById("hint");
+
+    const TAU = Math.PI * 2;
+    const MAX_PARTICLES = 5200;
+    const SHAPES = ["sphere", "ring", "heart"];
+    const PALETTES = [
+      ["#ffe08a", "#ffcf5c", "#ffb703", "#ff8800"],
+      ["#ffd0dd", "#ff8fab", "#ff477e", "#ff2d6f"],
+      ["#bae6fd", "#7dd3fc", "#22d3ee", "#0ea5e9"],
+      ["#e9d5ff", "#c084fc", "#a855f7", "#8b5cf6"],
+      ["#ccfbf1", "#5eead4", "#2dd4bf", "#14b8a6"],
+      ["#fed7aa", "#fdba74", "#fb923c", "#f97316"],
+      ["#dbeafe", "#93c5fd", "#60a5fa", "#3b82f6"],
+      ["#fae8ff", "#f0abfc", "#e879f9", "#d946ef"]
+    ];
+
+    let W = 1;
+    let H = 1;
+    let DPR = 1;
+    let paused = false;
+    let simTime = 0;
+    let lastFrame = performance.now();
+    let autoTimer = 0;
+    let autoEvery = 0.8;
+    let fpsTimer = 0;
+    let fpsFrames = 0;
+    let statsTimer = 0;
+    let shapeBag = [];
+    let stars = [];
+
+    const rockets = [];
+    const flashes = [];
+    const particles = [];
+
+    // 预分配粒子对象，运行时只从池中取用，避免频繁创建对象。
+    const particlePool = [];
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      particlePool.push({
+        x: 0, y: 0, vx: 0, vy: 0,
+        life: 0, maxLife: 1, size: 1,
+        gravity: 0, drag: 1, color: "#fff"
+      });
+    }
+
+    const rand = (min, max) => min + Math.random() * (max - min);
+    const randInt = (min, max) => Math.floor(rand(min, max + 1));
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+    // 首枚烟花也落在 1~2 秒的节奏内。
+    autoEvery = rand(1, 2);
+
+    function makeStars() {
+      const count = Math.round(clamp((W * H) / 9000, 90, 210));
+      stars = Array.from({ length: count }, () => ({
+        x: Math.random(),
+        y: rand(0.025, 0.7),
+        size: Math.random() < 0.12 ? rand(1.8, 2.7) : rand(0.65, 1.55),
+        alpha: rand(0.3, 0.95),
+        phase: rand(0, TAU),
+        speed: rand(0.25, 1.15),
+        warm: Math.random() < 0.2,
+        big: Math.random() < 0.07
+      }));
+    }
+
+    // 固定种子，让城市轮廓在窗口缩放后仍保持相似的随机形态。
+    function seededRandom(seed) {
+      return function () {
+        seed |= 0;
+        seed = (seed + 0x6D2B79F5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function buildBackground() {
+      bg.setTransform(DPR, 0, 0, DPR, 0, 0);
+      bg.clearRect(0, 0, W, H);
+
+      const sky = bg.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, "#03050e");
+      sky.addColorStop(0.34, "#061024");
+      sky.addColorStop(0.62, "#0a1930");
+      sky.addColorStop(0.82, "#10233c");
+      sky.addColorStop(1, "#080f1d");
+      bg.fillStyle = sky;
+      bg.fillRect(0, 0, W, H);
+
+      // 两团很淡的星云，给纯色夜空增加层次。
+      let glow = bg.createRadialGradient(W * 0.78, H * 0.18, 0, W * 0.78, H * 0.18, Math.max(W, H) * 0.44);
+      glow.addColorStop(0, "rgba(104, 64, 158, 0.13)");
+      glow.addColorStop(0.62, "rgba(64, 44, 120, 0.035)");
+      glow.addColorStop(1, "rgba(64, 44, 120, 0)");
+      bg.fillStyle = glow;
+      bg.fillRect(0, 0, W, H);
+
+      glow = bg.createRadialGradient(W * 0.16, H * 0.34, 0, W * 0.16, H * 0.34, Math.max(W, H) * 0.38);
+      glow.addColorStop(0, "rgba(32, 101, 158, 0.1)");
+      glow.addColorStop(1, "rgba(32, 101, 158, 0)");
+      bg.fillStyle = glow;
+      bg.fillRect(0, 0, W, H);
+
+      const horizon = bg.createLinearGradient(0, H * 0.65, 0, H * 0.9);
+      horizon.addColorStop(0, "rgba(67, 106, 153, 0)");
+      horizon.addColorStop(0.72, "rgba(92, 135, 180, 0.11)");
+      horizon.addColorStop(1, "rgba(238, 172, 103, 0.055)");
+      bg.fillStyle = horizon;
+      bg.fillRect(0, H * 0.65, W, H * 0.25);
+
+      drawCity();
+
+      const vignette = bg.createRadialGradient(
+        W * 0.5, H * 0.44, Math.min(W, H) * 0.2,
+        W * 0.5, H * 0.5, Math.max(W, H) * 0.76
+      );
+      vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+      vignette.addColorStop(0.72, "rgba(0, 0, 0, 0.06)");
+      vignette.addColorStop(1, "rgba(0, 0, 0, 0.42)");
+      bg.fillStyle = vignette;
+      bg.fillRect(0, 0, W, H);
+    }
+
+    function drawCity() {
+      const rng = seededRandom(20261103);
+      const unit = clamp(Math.min(W, H) / 900, 0.65, 1.35);
+
+      // 远处的低矮轮廓。
+      let x = -30;
+      const farBase = H * 0.865;
+      while (x < W + 30) {
+        const width = rng() * 54 * unit + 18;
+        const height = rng() * 76 * unit + 16;
+        const top = farBase - height;
+        bg.fillStyle = "rgba(6, 13, 26, 0.72)";
+        bg.fillRect(x, top, width, H - top);
+        if (rng() < 0.16) {
+          bg.fillStyle = "rgba(6, 13, 26, 0.72)";
+          bg.fillRect(x + width * 0.46, top - 13 * unit, 1.5, 13 * unit);
+        }
+        x += width + rng() * 9 + 2;
+      }
+
+      // 近处城市剪影与零星的窗灯。
+      x = -45;
+      const base = H * 0.94;
+      while (x < W + 45) {
+        const width = rng() * 74 * unit + 30;
+        const height = rng() * 174 * unit + 34;
+        const top = base - height;
+
+        bg.fillStyle = "#040810";
+        bg.fillRect(x, top, width, H - top);
+
+        if (rng() < 0.38) {
+          const stepW = width * (0.28 + rng() * 0.3);
+          bg.fillRect(x + width * 0.5 - stepW * 0.5, top - 8 * unit, stepW, 8 * unit + 1);
+        }
+
+        if (rng() < 0.3) {
+          const ax = x + width * (0.2 + rng() * 0.6);
+          bg.fillStyle = "#050b15";
+          bg.fillRect(ax, top - 22 * unit, 1.5, 22 * unit);
+          bg.fillStyle = "rgba(255, 126, 108, 0.65)";
+          bg.fillRect(ax - 1, top - 23 * unit, 3, 3);
+        }
+
+        // 窗户只在部分楼体上出现，避免画面太碎。
+        if (rng() < 0.55) {
+          const cellW = 10 * unit;
+          const cellH = 13 * unit;
+          const cols = Math.max(1, Math.floor((width - 10) / cellW));
+          const rows = Math.max(1, Math.floor((height - 14) / cellH));
+          for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+              if (rng() < 0.24) {
+                const wx = x + 6 * unit + col * cellW;
+                const wy = top + 9 * unit + row * cellH;
+                bg.fillStyle = rng() < 0.72
+                  ? "rgba(255, 203, 128, 0.42)"
+                  : "rgba(151, 205, 255, 0.3)";
+                bg.fillRect(wx, wy, 2.4 * unit, 2.4 * unit);
+              }
+            }
+          }
+        }
+
+        x += width + rng() * 11 + 1;
+      }
+
+      bg.fillStyle = "#03050c";
+      bg.fillRect(0, H * 0.985, W, H * 0.015);
+    }
+
+    function resize() {
+      W = Math.max(1, window.innerWidth);
+      H = Math.max(1, window.innerHeight);
+      DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+
+      canvas.width = Math.round(W * DPR);
+      canvas.height = Math.round(H * DPR);
+      fxCanvas.width = canvas.width;
+      fxCanvas.height = canvas.height;
+      bgCanvas.width = canvas.width;
+      bgCanvas.height = canvas.height;
+
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      fx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      bg.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+
+      fx.globalCompositeOperation = "source-over";
+      fx.clearRect(0, 0, W, H);
+
+      makeStars();
+      buildBackground();
+      lastFrame = performance.now();
+    }
+
+    function nextShape() {
+      if (shapeBag.length === 0) {
+        shapeBag = SHAPES.slice();
+        for (let i = shapeBag.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shapeBag[i], shapeBag[j]] = [shapeBag[j], shapeBag[i]];
+        }
+      }
+      return shapeBag.pop();
+    }
+
+    function spawnParticle(x, y, vx, vy, life, size, gravity, drag, color) {
+      if (particlePool.length === 0) return;
+      const p = particlePool.pop();
+      p.x = x;
+      p.y = y;
+      p.vx = vx;
+      p.vy = vy;
+      p.life = life;
+      p.maxLife = life;
+      p.size = size;
+      p.gravity = gravity;
+      p.drag = drag;
+      p.color = color;
+      particles.push(p);
+    }
+
+    function recycleParticle(index) {
+      const p = particles[index];
+      particles[index] = particles[particles.length - 1];
+      particles.pop();
+      particlePool.push(p);
+    }
+
+    function addFlash(x, y, radius, color) {
+      flashes.push({
+        x, y, radius, color,
+        age: 0,
+        duration: rand(0.22, 0.36)
+      });
+    }
+
+    function explode(x, y, shape) {
+      const count = randInt(80, 150);
+      const scale = clamp(Math.min(W, H) / 900, 0.62, 1.35);
+      const power = Math.min(W, H) * rand(0.21, 0.26);
+      const palette = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+      const gravity = 58 * scale;
+      const pickColor = () => palette[Math.floor(Math.random() * palette.length)];
+
+      addFlash(x, y, Math.min(W, H) * 0.11, palette[2]);
+
+      if (shape === "ring") {
+        const tilt = rand(-0.62, 0.62);
+        const cosT = Math.cos(tilt);
+        const sinT = Math.sin(tilt);
+        const squash = rand(0.5, 0.68);
+        const ringSpeed = power * rand(0.82, 0.97);
+
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * TAU + rand(-0.035, 0.035);
+          const speed = ringSpeed * rand(0.93, 1.07);
+          const dx = Math.cos(angle) * speed;
+          const dy = Math.sin(angle) * speed * squash;
+          const vx = dx * cosT - dy * sinT;
+          const vy = dx * sinT + dy * cosT;
+
+          spawnParticle(
+            x, y, vx, vy,
+            rand(1.45, 2.25),
+            rand(0.9, 2.2) * scale,
+            gravity * 0.72,
+            0.996,
+            pickColor()
+          );
+        }
+        return;
+      }
+
+      if (shape === "heart") {
+        const rotation = rand(-0.18, 0.18);
+        const cosR = Math.cos(rotation);
+        const sinR = Math.sin(rotation);
+
+        for (let i = 0; i < count; i++) {
+          const t = (i / count) * TAU + rand(-0.012, 0.012);
+          const sin = Math.sin(t);
+          const cos = Math.cos(t);
+
+          // 经典心形参数方程，归一化后作为粒子的初速度方向。
+          const hx = sin * sin * sin;
+          const hy = (
+            13 * cos - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)
+          ) / 16;
+          const jitter = rand(0.94, 1.06);
+          const ox = hx * power * jitter;
+          const oy = -hy * power * jitter;
+          const vx = ox * cosR - oy * sinR;
+          const vy = ox * sinR + oy * cosR;
+
+          spawnParticle(
+            x, y, vx, vy,
+            rand(1.65, 2.3),
+            rand(1, 2.3) * scale,
+            gravity * 0.3,
+            0.9975,
+            pickColor()
+          );
+        }
+        return;
+      }
+
+      // 普通球形：速度呈放射状随机分布。
+      for (let i = 0; i < count; i++) {
+        const angle = rand(0, TAU);
+        const speed = power * (0.22 + 0.78 * Math.sqrt(Math.random())) * rand(0.86, 1.1);
+        spawnParticle(
+          x, y,
+          Math.cos(angle) * speed,
+          Math.sin(angle) * speed,
+          rand(1.15, 2.05),
+          rand(0.9, 2.4) * scale,
+          gravity,
+          0.995,
+          pickColor()
+        );
+      }
+    }
+
+    function launchRocket(targetX, targetY, delay) {
+      if (rockets.length >= 36) return;
+
+      const sx = clamp(targetX + rand(-0.1, 0.1) * W, W * 0.03, W * 0.97);
+      const sy = H + 10;
+      const tx = clamp(targetX, W * 0.04, W * 0.96);
+      const ty = clamp(targetY, Math.max(64, H * 0.06), H * 0.84);
+      const scale = clamp(Math.min(W, H) / 900, 0.7, 1.25);
+      const rocketGravity = 560 * scale;
+      const rise = Math.max(55, sy - ty);
+      const vy = -Math.sqrt(2 * rocketGravity * rise);
+      const flightTime = -vy / rocketGravity;
+
+      rockets.push({
+        x: sx, y: sy, px: sx, py: sy,
+        vx: (tx - sx) / flightTime,
+        vy,
+        gravity: rocketGravity,
+        time: 0,
+        flightTime,
+        delay: delay || 0,
+        trailTimer: 0
+      });
+    }
+
+    function spawnEmber(x, y) {
+      spawnParticle(
+        x + rand(-1.5, 1.5), y + rand(-1, 2),
+        rand(-20, 20), rand(20, 80),
+        rand(0.28, 0.62),
+        rand(0.7, 1.7),
+        34,
+        0.99,
+        Math.random() < 0.55 ? "#ffcf7d" : "#fff0c7"
+      );
+    }
+
+    function fireAuto() {
+      launchRocket(
+        rand(W * 0.12, W * 0.88),
+        rand(H * 0.12, H * 0.53),
+        0
+      );
+    }
+
+    function fireVolley() {
+      if (paused) return;
+      for (let i = 0; i < 10; i++) {
+        const x = W * (0.08 + (i + 0.5) / 10 * 0.84) + rand(-W * 0.025, W * 0.025);
+        launchRocket(x, rand(H * 0.1, H * 0.52), i * rand(0.035, 0.075));
+      }
+      hint.classList.add("is-hidden");
+    }
+
+    function updateFlashes(dt) {
+      for (let i = flashes.length - 1; i >= 0; i--) {
+        const f = flashes[i];
+        f.age += dt;
+        if (f.age >= f.duration) flashes.splice(i, 1);
+      }
+    }
+
+    function updateParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        const damping = Math.pow(p.drag, dt * 60);
+        p.vx *= damping;
+        p.vy *= damping;
+        p.vy += p.gravity * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+
+        if (
+          p.life <= 0 ||
+          p.y > H + 300 ||
+          p.x < -320 ||
+          p.x > W + 320 ||
+          p.y < -320
+        ) {
+          recycleParticle(i);
+        }
+      }
+    }
+
+    function updateRockets(dt) {
+      for (let i = rockets.length - 1; i >= 0; i--) {
+        const r = rockets[i];
+
+        if (r.delay > 0) {
+          r.delay -= dt;
+          continue;
+        }
+
+        r.px = r.x;
+        r.py = r.y;
+        r.vy += r.gravity * dt;
+        r.x += r.vx * dt;
+        r.y += r.vy * dt;
+        r.time += dt;
+        r.trailTimer += dt;
+
+        if (r.trailTimer >= 0.035) {
+          r.trailTimer = 0;
+          spawnEmber(r.x, r.y + 3);
+        }
+
+        if (r.time >= r.flightTime || r.vy >= 0) {
+          explode(r.x, r.y, nextShape());
+          rockets.splice(i, 1);
+        }
+      }
+    }
+
+    function update(dt) {
+      simTime += dt;
+
+      autoTimer += dt;
+      if (autoTimer >= autoEvery) {
+        autoTimer = 0;
+        autoEvery = rand(1, 2);
+        fireAuto();
+      }
+
+      updateFlashes(dt);
+      updateParticles(dt);
+      updateRockets(dt);
+    }
+
+    function drawStars(time) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
+        const wave = 0.5 + 0.5 * Math.sin(time * s.speed + s.phase);
+        const alpha = s.alpha * (0.24 + 0.76 * wave * wave);
+        const size = s.size;
+        const x = s.x * W;
+        const y = s.y * H;
+
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = s.warm ? "#ffe8c7" : "#dfeeff";
+        ctx.fillRect(x, y, size, size);
+
+        if (s.big) {
+          ctx.globalAlpha = alpha * 0.18;
+          ctx.fillRect(x - size * 1.9, y + size * 0.35, size * 4.8, size * 0.5);
+          ctx.fillRect(x + size * 0.35, y - size * 1.9, size * 0.5, size * 4.8);
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function hexToRgba(hex, alpha) {
+      const value = parseInt(hex.slice(1), 16);
+      const r = (value >> 16) & 255;
+      const g = (value >> 8) & 255;
+      const b = value & 255;
+      return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+    }
+
+    function renderEffects(dt) {
+      // destination-out 让上一帧逐渐变透明，形成自然的拖尾和余晖。
+      const fade = 1 - Math.pow(0.82, dt * 60);
+      fx.globalCompositeOperation = "destination-out";
+      fx.fillStyle = "rgba(0,0,0," + fade + ")";
+      fx.fillRect(0, 0, W, H);
+
+      fx.globalCompositeOperation = "lighter";
+      fx.globalAlpha = 1;
+
+      // 爆炸瞬间的柔和闪光。
+      for (let i = 0; i < flashes.length; i++) {
+        const f = flashes[i];
+        const t = f.age / f.duration;
+        const radius = f.radius * (0.35 + Math.sqrt(t) * 0.65);
+        const alpha = (1 - t) * (1 - t);
+        const gradient = fx.createRadialGradient(f.x, f.y, 0, f.x, f.y, radius);
+        gradient.addColorStop(0, "rgba(255,252,235," + (0.34 * alpha) + ")");
+        gradient.addColorStop(0.3, hexToRgba(f.color, 0.18 * alpha));
+        gradient.addColorStop(1, hexToRgba(f.color, 0));
+        fx.fillStyle = gradient;
+        fx.beginPath();
+        fx.arc(f.x, f.y, radius, 0, TAU);
+        fx.fill();
+      }
+
+      // 粒子本身。
+      fx.globalAlpha = 1;
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        const ratio = p.life / p.maxLife;
+        const size = p.size * (0.78 + 0.22 * ratio);
+        fx.globalAlpha = Math.min(0.92, ratio * 1.25);
+        fx.fillStyle = p.color;
+        fx.fillRect(p.x - size * 0.5, p.y - size * 0.5, size, size);
+      }
+
+      // 火箭：一条拖尾线加一个发亮的弹头。
+      fx.globalAlpha = 1;
+      fx.lineCap = "round";
+      for (let i = 0; i < rockets.length; i++) {
+        const r = rockets[i];
+        if (r.delay > 0) continue;
+
+        fx.strokeStyle = "rgba(255, 205, 130, 0.58)";
+        fx.lineWidth = 1.4;
+        fx.beginPath();
+        fx.moveTo(r.px, r.py);
+        fx.lineTo(r.x, r.y);
+        fx.stroke();
+
+        fx.globalAlpha = 0.28;
+        fx.fillStyle = "#ffca78";
+        fx.beginPath();
+        fx.arc(r.x, r.y, 5.5, 0, TAU);
+        fx.fill();
+
+        fx.globalAlpha = 1;
+        fx.fillStyle = "#fff8df";
+        fx.beginPath();
+        fx.arc(r.x, r.y, 1.8, 0, TAU);
+        fx.fill();
+      }
+
+      fx.globalAlpha = 1;
+      fx.globalCompositeOperation = "source-over";
+
+      // 把烟花层叠加到夜空上。
+      ctx.globalCompositeOperation = "lighter";
+      ctx.drawImage(fxCanvas, 0, 0, W, H);
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    function render(dt) {
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(bgCanvas, 0, 0, W, H);
+      drawStars(simTime);
+
+      if (paused) {
+        // 暂停时只合成已有的烟花层，不再叠加或淡出。
+        ctx.globalCompositeOperation = "lighter";
+        ctx.drawImage(fxCanvas, 0, 0, W, H);
+        ctx.globalCompositeOperation = "source-over";
+      } else {
+        renderEffects(dt);
+      }
+    }
+
+    function frame(now) {
+      const rawDt = Math.min((now - lastFrame) / 1000, 0.1);
+      lastFrame = now;
+
+      // FPS 按真实时间统计，暂停时也继续刷新。
+      fpsFrames++;
+      fpsTimer += rawDt;
+      if (fpsTimer >= 0.5) {
+        fpsEl.textContent = String(Math.round(fpsFrames / fpsTimer));
+        fpsFrames = 0;
+        fpsTimer = 0;
+      }
+
+      const dt = Math.min(rawDt, 0.05);
+      if (!paused) update(dt);
+
+      statsTimer += rawDt;
+      if (statsTimer >= 0.2) {
+        statsTimer = 0;
+        countEl.textContent = String(particles.length);
+      }
+
+      render(dt);
+      requestAnimationFrame(frame);
+    }
+
+    function setPaused(value) {
+      paused = value;
+      toggleBtn.textContent = paused ? "继续" : "暂停";
+      toggleBtn.setAttribute("aria-pressed", String(paused));
+      burstBtn.disabled = paused;
+      panel.classList.toggle("is-paused", paused);
+      lastFrame = performance.now();
+    }
+
+    toggleBtn.addEventListener("click", () => setPaused(!paused));
+    burstBtn.addEventListener("click", fireVolley);
+
+    canvas.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.preventDefault();
+      hint.classList.add("is-hidden");
+      if (paused) return;
+
+      const rect = canvas.getBoundingClientRect();
+      launchRocket(event.clientX - rect.left, event.clientY - rect.top, 0);
+    }, { passive: false });
+
+    window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", () => {
+      lastFrame = performance.now();
+    });
+
+    resize();
+    requestAnimationFrame(frame);
+  })();
+  </script>
+</body>
+</html>
