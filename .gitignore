@@ -5,3 +5,5 @@ node_modules
 r1.json
 task.txt
 test.js
+r*.err
+r*.json
